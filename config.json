@@ -1,0 +1,32 @@
+{
+  "urls": [
+    {
+      "name": "Saramin VN - Trang chủ",
+      "url": "https://saramin.vn",
+      "timeoutMs": 30000
+    },
+    {
+      "name": "TopDev - Trang chủ",
+      "url": "https://topdev.vn",
+      "timeoutMs": 30000
+    }
+  ],
+
+  "check": {
+    "waitUntil": "networkidle",
+    "networkIdleTimeoutMs": 2000,
+    "maxAllowedLoadTimeMs": 8000,
+    "ignoreStatusCodesForDomains": [],
+    "screenshotOnError": true
+  },
+
+  "telegram": {
+    "sendOkNotification": false
+  },
+
+  "storage": {
+    "logDir": "./logs",
+    "screenshotDir": "./screenshots",
+    "keepLogsForDays": 14
+  }
+}

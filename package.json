@@ -1,0 +1,15 @@
+{
+  "name": "website-monitor",
+  "version": "1.0.0",
+  "description": "Kiem tra dinh ky website bang headless browser, dam bao moi resource (JS/CSS/image/API) load thanh cong, khong chi check status code cua trang chinh.",
+  "type": "commonjs",
+  "main": "monitor.js",
+  "scripts": {
+    "start": "node monitor.js",
+    "install-browsers": "npx playwright install --with-deps chromium"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "playwright": "^1.48.0"
+  }
+}
