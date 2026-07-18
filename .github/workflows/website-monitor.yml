@@ -11,6 +11,7 @@ jobs:
   monitor:
     runs-on: ubuntu-latest
     name: Check website health
+    environment: SVN-Prod
 
     steps:
       - name: Checkout code
