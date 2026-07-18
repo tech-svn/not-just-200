@@ -46,11 +46,11 @@ Edit `.env`:
 
 ```env
 # Website URLs to monitor (JSON array format)
-WEBSITE_URLS=[{"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}]
+WEBSITE_URLS=[{"name":"Saramin","url":"https://example.com","timeoutMs":30000}]
 
 # Domain whitelist (optional, comma-separated)
 # Only requests from these domains will be checked
-ALLOWED_DOMAINS=saramin.vn,topdev.vn
+ALLOWED_DOMAINS=example.com,example.com
 
 # Telegram credentials
 TELEGRAM_BOT_TOKEN=your_bot_token
@@ -64,7 +64,7 @@ Edit `config.json`:
 ```json
 {
   "urls": [
-    {"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}
+    {"name":"Saramin","url":"https://example.com","timeoutMs":30000}
   ],
   "check": {
     "waitUntil": "networkidle",
@@ -152,13 +152,13 @@ For multi-region monitoring, deploy identical containers on different VPS in var
 Optionally filter which domains to monitor using `ALLOWED_DOMAINS`:
 
 ```env
-ALLOWED_DOMAINS=saramin.vn,topdev.vn
+ALLOWED_DOMAINS=example.com,example.com
 ```
 
 This will **only check requests** from:
 
-- `saramin.vn`, `www.saramin.vn`, `api.saramin.vn`, etc.
-- `topdev.vn`, `platform.topdev.vn`, etc.
+- `example.com`, `www.example.com`, `api.example.com`, etc.
+- `example.com`, `platform.example.com`, etc.
 
 Third-party tracking (Google Analytics, DoubleClick, etc.) will be automatically filtered out.
 
@@ -217,11 +217,11 @@ Sửa `.env`:
 
 ```env
 # URLs cần giám sát (định dạng JSON array)
-WEBSITE_URLS=[{"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}]
+WEBSITE_URLS=[{"name":"Saramin","url":"https://example.com","timeoutMs":30000}]
 
 # Whitelist domain (tùy chọn, cách nhau bằng dấu phẩy)
 # Chỉ requests từ những domain này mới được kiểm tra
-ALLOWED_DOMAINS=saramin.vn,topdev.vn
+ALLOWED_DOMAINS=example.com,example.com
 
 # Thông tin Telegram
 TELEGRAM_BOT_TOKEN=token_của_bạn
@@ -235,7 +235,7 @@ Sửa `config.json`:
 ```json
 {
   "urls": [
-    {"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}
+    {"name":"Saramin","url":"https://example.com","timeoutMs":30000}
   ],
   "check": {
     "waitUntil": "networkidle",
@@ -323,13 +323,13 @@ Cho giám sát đa khu vực, deploy container trên nhiều VPS ở các nơi k
 Tùy chọn lọc domain nào cần giám sát bằng `ALLOWED_DOMAINS`:
 
 ```env
-ALLOWED_DOMAINS=saramin.vn,topdev.vn
+ALLOWED_DOMAINS=example.com,example.com
 ```
 
 Điều này sẽ **chỉ kiểm tra requests** từ:
 
-- `saramin.vn`, `www.saramin.vn`, `api.saramin.vn`, v.v.
-- `topdev.vn`, `platform.topdev.vn`, v.v.
+- `example.com`, `www.example.com`, `api.example.com`, v.v.
+- `example.com`, `platform.example.com`, v.v.
 
 Tracking của bên thứ ba (Google Analytics, DoubleClick, v.v.) sẽ bị tự động lọc ra.
 
@@ -346,7 +346,6 @@ Workers không thể thực thi JavaScript runtime của trình duyệt (không 
 - Biểu đồ waterfall hiệu năng
 
 ---
-
 
 ## License
 
