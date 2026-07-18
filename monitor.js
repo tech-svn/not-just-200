@@ -27,7 +27,27 @@ function loadConfig() {
     console.error(`Khong tim thay file config: ${configPath}`);
     process.exit(1);
   }
-  return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+  // Load URLs from environment variable (WEBSITE_URLS) if available
+  // This allows storing URLs in GitHub Secrets or .env
+  if (process.env.WEBSITE_URLS) {
+    try {
+      config.urls = JSON.parse(process.env.WEBSITE_URLS);
+      console.log(`[Config] Loaded ${config.urls.length} URL(s) from WEBSITE_URLS environment variable`);
+    } catch (err) {
+      console.error(`[Config] Loi parse WEBSITE_URLS environment variable: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  // Validate URLs are present
+  if (!config.urls || config.urls.length === 0) {
+    console.error('[Config] Khong co URL nao de kiem tra. Them WEBSITE_URLS trong .env hoac config.json');
+    process.exit(1);
+  }
+
+  return config;
 }
 
 // ---------- Gui canh bao Telegram ----------
