@@ -33,6 +33,7 @@ jobs:
           WEBSITE_URLS: ${{ secrets.WEBSITE_URLS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALLOWED_DOMAINS: ${{ secrets.ALLOWED_DOMAINS }}
         run: npm start
         continue-on-error: true
 
