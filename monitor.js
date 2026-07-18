@@ -18,6 +18,32 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
+// ---------- Parse allowed domains ----------
+function parseAllowedDomains() {
+  const allowedDomainsStr = process.env.ALLOWED_DOMAINS || '';
+  if (!allowedDomainsStr.trim()) {
+    return null;
+  }
+  return allowedDomainsStr
+    .split(',')
+    .map((d) => d.trim().toLowerCase())
+    .filter((d) => d.length > 0);
+}
+
+// ---------- Check if URL matches allowed domain (including subdomains) ----------
+function isAllowedDomain(urlString, allowedDomains) {
+  if (!allowedDomains || allowedDomains.length === 0) {
+    return true;
+  }
+  try {
+    const url = new URL(urlString);
+    const hostname = url.hostname.toLowerCase();
+    return allowedDomains.some((domain) => hostname === domain || hostname.endsWith('.' + domain));
+  } catch {
+    return false;
+  }
+}
+
 // ---------- Doc config ----------
 function loadConfig() {
   const args = process.argv.slice(2);
@@ -39,6 +65,12 @@ function loadConfig() {
       console.error(`[Config] Loi parse WEBSITE_URLS environment variable: ${err.message}`);
       process.exit(1);
     }
+  }
+
+  // Load allowed domains from environment variable
+  config.allowedDomains = parseAllowedDomains();
+  if (config.allowedDomains && config.allowedDomains.length > 0) {
+    console.log(`[Config] Allowed domains: ${config.allowedDomains.join(', ')}`);
   }
 
   // Validate URLs are present
@@ -94,7 +126,7 @@ function escapeHtml(str) {
 }
 
 // ---------- Kiem tra 1 URL ----------
-async function checkUrl(browser, target, checkCfg, screenshotDir) {
+async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains) {
   const context = await browser.newContext({
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 WebsiteMonitorBot/1.0',
@@ -112,6 +144,7 @@ async function checkUrl(browser, target, checkCfg, screenshotDir) {
     consoleErrors: [],
     pageErrors: [],
     totalRequests: 0,
+    filteredRequestsCount: 0,
     screenshotPath: null,
     errorMessage: null,
   };
@@ -120,22 +153,32 @@ async function checkUrl(browser, target, checkCfg, screenshotDir) {
 
   page.on('response', (response) => {
     const req = response.request();
-    requests.push({
-      url: req.url(),
-      resourceType: req.resourceType(),
-      status: response.status(),
-      ok: response.ok(),
-    });
+    const urlStr = req.url();
+    if (isAllowedDomain(urlStr, allowedDomains)) {
+      requests.push({
+        url: urlStr,
+        resourceType: req.resourceType(),
+        status: response.status(),
+        ok: response.ok(),
+      });
+    } else {
+      result.filteredRequestsCount++;
+    }
   });
 
   page.on('requestfailed', (req) => {
-    requests.push({
-      url: req.url(),
-      resourceType: req.resourceType(),
-      status: 0,
-      ok: false,
-      failure: req.failure()?.errorText || 'unknown network error',
-    });
+    const urlStr = req.url();
+    if (isAllowedDomain(urlStr, allowedDomains)) {
+      requests.push({
+        url: urlStr,
+        resourceType: req.resourceType(),
+        status: 0,
+        ok: false,
+        failure: req.failure()?.errorText || 'unknown network error',
+      });
+    } else {
+      result.filteredRequestsCount++;
+    }
   });
 
   page.on('console', (msg) => {
@@ -260,7 +303,7 @@ async function main() {
   const results = [];
   for (const target of config.urls) {
     console.log(`  -> Dang kiem tra: ${target.name} (${target.url})`);
-    const result = await checkUrl(browser, target, config.check || {}, screenshotDir);
+    const result = await checkUrl(browser, target, config.check || {}, screenshotDir, config.allowedDomains);
     results.push(result);
     writeLog(logDir, result);
 
@@ -268,7 +311,11 @@ async function main() {
       console.error(`  [LOI] ${target.name}: ${result.errorMessage}`);
       await sendTelegram(formatAlertMessage(result));
     } else {
-      console.log(`  [OK] ${target.name} - ${result.loadTimeMs}ms, ${result.totalRequests} requests`);
+      let successMsg = `  [OK] ${target.name} - ${result.loadTimeMs}ms, ${result.totalRequests} requests`;
+      if (result.filteredRequestsCount > 0) {
+        successMsg += ` (${result.filteredRequestsCount} filtered by domain whitelist)`;
+      }
+      console.log(successMsg);
       if (config.telegram?.sendOkNotification) {
         await sendTelegram(formatOkMessage(result));
       }
