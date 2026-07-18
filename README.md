@@ -1,5 +1,8 @@
 # Website Monitor
 
+[![Website Monitor](https://github.com/tech-svn/not-just-200/actions/workflows/website-monitor.yml/badge.svg)](https://github.com/tech-svn/not-just-200/actions/workflows/website-monitor.yml)
+
+
 Công cụ kiểm tra định kỳ website bằng **headless Chromium (Playwright)**.
 Không chỉ check status code của trang chính — mà mô phỏng đúng trình duyệt thật:
 mở trang, chạy JS, load ảnh/CSS/font/API call, rồi báo lỗi nếu **bất kỳ resource nào**
