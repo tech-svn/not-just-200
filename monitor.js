@@ -18,6 +18,9 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
+// Status code duoc coi la binh thuong, khong tinh la loi (vd: API yeu cau auth)
+const IGNORED_STATUS_CODES = [401, 403];
+
 // ---------- Parse allowed domains ----------
 function parseAllowedDomains() {
   const allowedDomainsStr = process.env.ALLOWED_DOMAINS || '';
@@ -162,7 +165,7 @@ async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains
         url: urlStr,
         resourceType: req.resourceType(),
         status: response.status(),
-        ok: response.ok(),
+        ok: response.ok() || IGNORED_STATUS_CODES.includes(response.status()),
       });
     } else {
       result.filteredRequestsCount++;
@@ -215,7 +218,7 @@ async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains
     result.failedRequests = requests.filter((r) => !r.ok);
 
     // Kiem tra dieu kien fail
-    if (!result.mainStatus || result.mainStatus >= 400) {
+    if (!result.mainStatus || (result.mainStatus >= 400 && !IGNORED_STATUS_CODES.includes(result.mainStatus))) {
       result.ok = false;
       result.errorMessage = `Document chinh tra ve status ${result.mainStatus}`;
     } else if (result.failedRequests.length > 0) {
