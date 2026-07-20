@@ -154,6 +154,9 @@ async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains
   page.on('response', (response) => {
     const req = response.request();
     const urlStr = req.url();
+    if (req.resourceType() === 'fetch') {
+      return;
+    }
     if (isAllowedDomain(urlStr, allowedDomains)) {
       requests.push({
         url: urlStr,
@@ -168,6 +171,9 @@ async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains
 
   page.on('requestfailed', (req) => {
     const urlStr = req.url();
+    if (req.resourceType() === 'fetch') {
+      return;
+    }
     if (isAllowedDomain(urlStr, allowedDomains)) {
       requests.push({
         url: urlStr,
