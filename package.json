@@ -6,10 +6,17 @@
   "main": "monitor.js",
   "scripts": {
     "start": "node monitor.js",
-    "install-browsers": "npx playwright install --with-deps chromium"
+    "install-browsers": "npx playwright install --with-deps chromium",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy",
+    "worker:tail": "wrangler tail"
   },
   "dependencies": {
+    "@cloudflare/playwright": "^1.3.0",
     "dotenv": "^16.3.1",
     "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.112.0"
   }
 }

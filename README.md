@@ -1,7 +1,5 @@
 # Website Monitor
 
-[![Website Monitor](https://github.com/tech-svn/not-just-200/actions/workflows/website-monitor.yml/badge.svg)](https://github.com/tech-svn/not-just-200/actions/workflows/website-monitor.yml)
-
 ---
 
 ## 🌍 English
@@ -18,8 +16,8 @@ Periodic website monitoring tool using **headless Chromium (Playwright)**. Unlik
 - ✅ Captures full-page screenshots on failure
 - ✅ Telegram alerts with detailed error reports
 - ✅ Domain whitelist filtering (check only specific domains)
-- ✅ GitHub Actions integration for automated monitoring
-- ✅ JSON Lines logging for historical analysis
+- ✅ Cloudflare Workers cron scheduling: fast static check every 5 min + deep browser check every hour
+- ✅ JSON Lines logging for historical analysis (local) / KV logging (Workers)
 
 ### Installation
 
@@ -34,7 +32,7 @@ npm run install-browsers
 
 
 
-#### Option 1: Environment Variables (GitHub Actions / .env)
+#### Option 1: Environment Variables (Cloudflare Workers secrets / .env)
 
 Create `.env` file from `.env.example`:
 
@@ -117,20 +115,49 @@ Add (runs every 10 minutes):
 */10 * * * * cd /path/to/website-monitor && /usr/bin/node monitor.js >> cron.log 2>&1
 ```
 
-#### Via GitHub Actions (Recommended)
+#### Via Cloudflare Workers (Recommended)
 
+`src/worker.js` runs on Cloudflare Workers using two cron triggers defined in `wrangler.toml`:
 
+- **Fast tier** (`*/5 * * * *`): plain `fetch()` + the built-in `HTMLRewriter` — checks the main document's status code plus the page's core `<script src>` / `<link rel="stylesheet">` tags. No headless browser involved, so it costs nothing beyond ordinary Worker subrequests.
+- **Deep tier** (`0 * * * *`): a full headless-browser render via [Browser Rendering](https://developers.cloudflare.com/browser-rendering/) using [`@cloudflare/playwright`](https://www.npmjs.com/package/@cloudflare/playwright) — same checks as `monitor.js`'s `checkUrl()` (JS execution, console errors, every sub-resource, real load timing, screenshot on failure).
 
-1. Go to repo → **Settings** → **Secrets and variables** → **Actions**
-2. Create environment `SVN-Prod` (or similar)
-3. Add secrets:
-   - `WEBSITE_URLS`: JSON array of URLs
-   - `TELEGRAM_BOT_TOKEN`: From [@BotFather](https://t.me/BotFather)
-   - `TELEGRAM_CHAT_ID`: Your chat ID
-   - `ALLOWED_DOMAINS`: Optional domain whitelist
+**Why two tiers:** Browser Rendering is billed by session time (the Free plan includes 10 browser-minutes/day). Running a full browser check every 5 minutes for every configured URL would blow that budget fast, especially on pages with 100+ requests. The fast tier gives near-real-time uptime signal for free; the hourly deep tier is the source of truth for full resource/JS coverage and stays comfortably inside the free budget (~5-6 browser-minutes/day for a couple of URLs).
 
-4. Workflow runs automatically every 10 minutes
-5. View runs in Actions tab
+**Setup:**
+
+```bash
+npm install
+npx wrangler login
+
+# Create the KV namespace for logs, then paste the id it prints into wrangler.toml
+npx wrangler kv namespace create MONITOR_LOGS
+
+# Create the R2 bucket for failure screenshots
+npx wrangler r2 bucket create not-just-200-screenshots
+
+# Configure secrets (same values as the old GitHub Secrets)
+npx wrangler secret put WEBSITE_URLS
+npx wrangler secret put ALLOWED_DOMAINS
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+npx wrangler secret put TELEGRAM_CHAT_ID
+npx wrangler secret put MONITOR_TRIGGER_TOKEN   # any random string; gates the manual /run/* routes
+
+npm run worker:deploy
+```
+
+After the first deploy, optionally set `PUBLIC_BASE_URL` in `wrangler.toml` to the Worker's `*.workers.dev` URL (or a custom domain) so failure alerts can link straight to `/screenshot/<key>`.
+
+**Manual testing** (skip waiting for the cron to fire):
+
+```bash
+curl "https://<your-worker>.workers.dev/run/static?token=<MONITOR_TRIGGER_TOKEN>"
+curl "https://<your-worker>.workers.dev/run/browser?token=<MONITOR_TRIGGER_TOKEN>"
+```
+
+**Logs:** each check writes one entry to the `MONITOR_LOGS` KV namespace (`log:<date>:<static|browser>:<name>:<timestamp>`), expiring automatically after `storage.keepLogsForDays` (from `config.json`). Tail live execution with `npm run worker:tail`.
+
+**Tuning the schedule:** the free-tier budget assumes a small number of URLs. With more sites (or if you upgrade to the Workers Paid plan), adjust the cron expressions in `wrangler.toml` — e.g. drop the deep tier to every 15-20 minutes if you have Paid-plan browser-hours to spare.
 
 #### Via Docker
 
@@ -162,9 +189,9 @@ This will **only check requests** from:
 
 Third-party tracking (Google Analytics, DoubleClick, etc.) will be automatically filtered out.
 
-### Why Not Cloudflare Workers?
+### Fast Tier Limitations
 
-Workers cannot execute browser JavaScript runtime (no DOM, no rendering). They only fetch raw HTML — missing all dynamically loaded resources (lazy images, API calls from React/Next.js, etc.). For real user experience simulation, headless browser is required.
+The 5-minute static tier can only see what's declared in the raw HTML (`<script src>`, `<link rel="stylesheet">`). It cannot execute JavaScript, so it will miss anything a page loads dynamically — JS-triggered API calls, lazily-swapped images, uncaught runtime exceptions, `console.error()` calls. Those are only caught by the hourly deep-browser tier, which means worst-case detection latency for a JS-only failure is up to an hour. If that's not acceptable for a given site, consider running the deep tier more frequently (see "Tuning the schedule" above) or moving that site to the local/VPS cron path running `monitor.js` directly.
 
 ### Future Enhancements
 
@@ -191,8 +218,8 @@ Công cụ kiểm tra định kỳ website bằng **headless Chromium (Playwrigh
 - ✅ Chụp ảnh toàn trang khi lỗi
 - ✅ Cảnh báo Telegram với báo cáo chi tiết
 - ✅ Bộ lọc domain (chỉ kiểm tra các domain cụ thể)
-- ✅ Tích hợp GitHub Actions để giám sát tự động
-- ✅ JSON Lines logging cho phân tích lịch sử
+- ✅ Lập lịch bằng Cloudflare Workers: kiểm tra nhanh mỗi 5 phút + kiểm tra sâu bằng browser mỗi giờ
+- ✅ JSON Lines logging cho phân tích lịch sử (local) / KV logging (Workers)
 
 ### Cài Đặt
 
@@ -205,7 +232,7 @@ npm run install-browsers
 
 ### Cấu Hình
 
-#### Cách 1: Biến Môi Trường (GitHub Actions / .env)
+#### Cách 1: Biến Môi Trường (Cloudflare Workers secrets / .env)
 
 Tạo file `.env` từ `.env.example`:
 
@@ -288,20 +315,49 @@ Thêm (chạy mỗi 10 phút):
 */10 * * * * cd /path/to/website-monitor && /usr/bin/node monitor.js >> cron.log 2>&1
 ```
 
-#### Qua GitHub Actions (Khuyến Nghị)
+#### Qua Cloudflare Workers (Khuyến Nghị)
 
+`src/worker.js` chạy trên Cloudflare Workers với hai cron trigger khai báo trong `wrangler.toml`:
 
+- **Tầng nhanh** (`*/5 * * * *`): dùng `fetch()` thuần + `HTMLRewriter` có sẵn — kiểm tra status code trang chính và các thẻ `<script src>` / `<link rel="stylesheet">` cốt lõi. Không dùng headless browser nên gần như miễn phí (chỉ tốn subrequest thông thường).
+- **Tầng sâu** (`0 * * * *`): render đầy đủ bằng headless browser qua [Browser Rendering](https://developers.cloudflare.com/browser-rendering/) với [`@cloudflare/playwright`](https://www.npmjs.com/package/@cloudflare/playwright) — giống hệt `checkUrl()` trong `monitor.js` (chạy JS, bắt console error, kiểm tra mọi resource, đo thời gian load thật, chụp ảnh khi lỗi).
 
-1. Vào repo → **Settings** → **Secrets and variables** → **Actions**
-2. Tạo environment `SVN-Prod` (hoặc tên khác)
-3. Thêm secrets:
-   - `WEBSITE_URLS`: JSON array của URLs
-   - `TELEGRAM_BOT_TOKEN`: Từ [@BotFather](https://t.me/BotFather)
-   - `TELEGRAM_CHAT_ID`: Chat ID của bạn
-   - `ALLOWED_DOMAINS`: Whitelist domain (tùy chọn)
+**Vì sao chia 2 tầng:** Browser Rendering tính phí theo thời gian phiên (gói Free có 10 phút browser/ngày). Nếu chạy browser thật mỗi 5 phút cho mọi URL sẽ vượt ngân sách rất nhanh, nhất là với trang có 100+ request. Tầng nhanh cho tín hiệu uptime gần thời gian thực miễn phí; tầng sâu chạy mỗi giờ là nguồn kiểm tra đầy đủ resource/JS, vẫn nằm trong ngân sách free (~5-6 phút browser/ngày với vài URL).
 
-4. Workflow tự chạy mỗi 10 phút
-5. Xem runs trong tab Actions
+**Thiết lập:**
+
+```bash
+npm install
+npx wrangler login
+
+# Tạo KV namespace để ghi log, sau đó dán id in ra vào wrangler.toml
+npx wrangler kv namespace create MONITOR_LOGS
+
+# Tạo R2 bucket để lưu screenshot khi lỗi
+npx wrangler r2 bucket create not-just-200-screenshots
+
+# Cấu hình secrets (giống các giá trị GitHub Secrets cũ)
+npx wrangler secret put WEBSITE_URLS
+npx wrangler secret put ALLOWED_DOMAINS
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+npx wrangler secret put TELEGRAM_CHAT_ID
+npx wrangler secret put MONITOR_TRIGGER_TOKEN   # chuỗi ngẫu nhiên bất kỳ; bảo vệ route /run/*
+
+npm run worker:deploy
+```
+
+Sau lần deploy đầu tiên, có thể set `PUBLIC_BASE_URL` trong `wrangler.toml` thành URL `*.workers.dev` của Worker (hoặc custom domain) để cảnh báo lỗi có thể link thẳng tới `/screenshot/<key>`.
+
+**Kiểm tra thủ công** (không cần chờ cron):
+
+```bash
+curl "https://<your-worker>.workers.dev/run/static?token=<MONITOR_TRIGGER_TOKEN>"
+curl "https://<your-worker>.workers.dev/run/browser?token=<MONITOR_TRIGGER_TOKEN>"
+```
+
+**Log:** mỗi lần kiểm tra ghi một entry vào KV namespace `MONITOR_LOGS` (`log:<ngày>:<static|browser>:<tên>:<timestamp>`), tự hết hạn sau `storage.keepLogsForDays` (trong `config.json`). Xem log real-time bằng `npm run worker:tail`.
+
+**Tinh chỉnh lịch chạy:** ngân sách free tier ở trên tính cho số lượng URL nhỏ. Nếu có nhiều site hơn (hoặc nâng cấp gói Paid), điều chỉnh biểu thức cron trong `wrangler.toml` — ví dụ giảm tầng sâu xuống mỗi 15-20 phút nếu gói Paid còn dư browser-hours.
 
 #### Qua Docker
 
@@ -333,9 +389,9 @@ ALLOWED_DOMAINS=example.com,example.com
 
 Tracking của bên thứ ba (Google Analytics, DoubleClick, v.v.) sẽ bị tự động lọc ra.
 
-### Tại Sao Không Dùng Cloudflare Workers?
+### Giới Hạn Của Tầng Nhanh
 
-Workers không thể thực thi JavaScript runtime của trình duyệt (không có DOM, không render). Chúng chỉ fetch HTML thô rồi tự parse — sẽ bỏ sót mọi resource được load động bằng JavaScript (lazy load ảnh, API call từ React/Next.js, v.v.). Để mô phỏng trải nghiệm user thật, cần phải dùng headless browser.
+Tầng static 5 phút chỉ thấy được những gì khai báo sẵn trong HTML thô (`<script src>`, `<link rel="stylesheet">`). Nó không thực thi JavaScript nên sẽ bỏ sót mọi thứ trang load động — API call do JS gọi, ảnh lazy-swap, uncaught exception, `console.error()`. Những lỗi này chỉ được tầng browser (chạy mỗi giờ) phát hiện, nghĩa là độ trễ phát hiện tối đa cho lỗi thuần JS có thể lên tới 1 giờ. Nếu điều này không chấp nhận được với một site cụ thể, cân nhắc chạy tầng sâu thường xuyên hơn (xem "Tinh chỉnh lịch chạy" ở trên) hoặc chuyển site đó sang chạy `monitor.js` trực tiếp qua cron local/VPS.
 
 ### Mở Rộng Thêm
 

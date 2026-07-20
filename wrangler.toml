@@ -1,0 +1,37 @@
+name = "not-just-200-monitor"
+main = "src/worker.js"
+compatibility_date = "2026-07-20"
+compatibility_flags = ["nodejs_compat"]
+
+# Remote headless browser (Browser Rendering) used by the hourly deep check.
+browser = { binding = "MYBROWSER" }
+
+# Two schedules dispatched inside the same scheduled() handler, keyed off event.cron:
+#   */5 * * * *  -> fast static check (fetch + HTMLRewriter, no browser cost)
+#   0 * * * *    -> deep browser check (full Playwright render via Browser Rendering)
+[triggers]
+crons = ["*/5 * * * *", "0 * * * *"]
+
+# Create with: wrangler kv namespace create MONITOR_LOGS
+# Then replace the id below with the id it prints.
+[[kv_namespaces]]
+binding = "MONITOR_LOGS"
+id = "05a2742d54474dcb96b38a71cd3a5546"
+
+# Create with: wrangler r2 bucket create not-just-200-screenshots
+[[r2_buckets]]
+binding = "SCREENSHOTS"
+bucket_name = "not-just-200-screenshots"
+
+# Optional: set after first deploy (e.g. https://not-just-200-monitor.<subdomain>.workers.dev
+# or a custom domain) so failure alerts can link back to /screenshot/<key>.
+# If left unset, alerts fall back to printing the raw screenshot key.
+[vars]
+PUBLIC_BASE_URL = ""
+
+# Secrets (set via `wrangler secret put <NAME>`, not stored here):
+#   WEBSITE_URLS          - JSON array, e.g. [{"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}]
+#   ALLOWED_DOMAINS        - optional comma-separated domain whitelist
+#   TELEGRAM_BOT_TOKEN
+#   TELEGRAM_CHAT_ID
+#   MONITOR_TRIGGER_TOKEN  - required to call /run/static or /run/browser manually
