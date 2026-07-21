@@ -17,6 +17,7 @@ import { launch } from '@cloudflare/playwright';
 import config from '../config.json';
 
 const IGNORED_STATUS_CODES = [401, 403];
+const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions'];
 const FAST_CRON = '*/5 * * * *';
 const DEEP_CRON = '0 * * * *';
 const USER_AGENT =
@@ -45,6 +46,15 @@ function isAllowedDomain(urlString, allowedDomains) {
   try {
     const hostname = new URL(urlString).hostname.toLowerCase();
     return allowedDomains.some((domain) => hostname === domain || hostname.endsWith('.' + domain));
+  } catch {
+    return false;
+  }
+}
+
+function isIgnoredRequestPath(urlString) {
+  try {
+    const pathname = new URL(urlString).pathname;
+    return IGNORED_URL_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   } catch {
     return false;
   }
@@ -296,6 +306,7 @@ async function runDeepCheckForTarget(browser, env, target, allowedDomains) {
       ignoredStatusUrls.add(urlStr);
     }
     if (req.resourceType() === 'fetch') return;
+    if (isIgnoredRequestPath(urlStr)) return;
     if (isAllowedDomain(urlStr, allowedDomains)) {
       requests.push({
         url: urlStr,
@@ -311,6 +322,7 @@ async function runDeepCheckForTarget(browser, env, target, allowedDomains) {
   page.on('requestfailed', (req) => {
     const urlStr = req.url();
     if (req.resourceType() === 'fetch') return;
+    if (isIgnoredRequestPath(urlStr)) return;
     if (isAllowedDomain(urlStr, allowedDomains)) {
       requests.push({
         url: urlStr,

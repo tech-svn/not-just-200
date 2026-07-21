@@ -21,6 +21,9 @@ const https = require('https');
 // Status code duoc coi la binh thuong, khong tinh la loi (vd: API yeu cau auth)
 const IGNORED_STATUS_CODES = [401, 403];
 
+// Cac endpoint luon fail o headless browser (vd: can session dang nhap), bo qua khong tinh la loi
+const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions'];
+
 // ---------- Parse allowed domains ----------
 function parseAllowedDomains() {
   const allowedDomainsStr = process.env.ALLOWED_DOMAINS || '';
@@ -42,6 +45,16 @@ function isAllowedDomain(urlString, allowedDomains) {
     const url = new URL(urlString);
     const hostname = url.hostname.toLowerCase();
     return allowedDomains.some((domain) => hostname === domain || hostname.endsWith('.' + domain));
+  } catch {
+    return false;
+  }
+}
+
+// ---------- Check if URL path should be ignored (always-failing endpoints) ----------
+function isIgnoredRequestPath(urlString) {
+  try {
+    const pathname = new URL(urlString).pathname;
+    return IGNORED_URL_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   } catch {
     return false;
   }
@@ -164,6 +177,9 @@ async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains
     if (req.resourceType() === 'fetch') {
       return;
     }
+    if (isIgnoredRequestPath(urlStr)) {
+      return;
+    }
     if (isAllowedDomain(urlStr, allowedDomains)) {
       requests.push({
         url: urlStr,
@@ -179,6 +195,9 @@ async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains
   page.on('requestfailed', (req) => {
     const urlStr = req.url();
     if (req.resourceType() === 'fetch') {
+      return;
+    }
+    if (isIgnoredRequestPath(urlStr)) {
       return;
     }
     if (isAllowedDomain(urlStr, allowedDomains)) {
