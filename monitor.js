@@ -196,11 +196,15 @@ async function checkUrl(browser, target, checkCfg, screenshotDir, allowedDomains
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
+      const text = msg.text();
       const loc = msg.location();
       if (loc?.url && ignoredStatusUrls.has(loc.url)) {
         return;
       }
-      result.consoleErrors.push(msg.text().slice(0, 300));
+      if (text.includes('Converting circular structure to JSON')) {
+        return;
+      }
+      result.consoleErrors.push(text.slice(0, 300));
     }
   });
 
