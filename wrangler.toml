@@ -33,7 +33,7 @@ PUBLIC_BASE_URL = ""
 # domain bound to the bucket), e.g. "https://pub-xxxxxxxx.r2.dev". When set, alerts link
 # directly to the image there instead of proxying through this Worker's /screenshot/<key>.
 # Takes priority over PUBLIC_BASE_URL for screenshot links.
-SCREENSHOTS_PUBLIC_URL = ""
+SCREENSHOTS_PUBLIC_URL = "https://pub-70f8e9233b34475b9c97d42f0dea0070.r2.dev"
 
 # Secrets (set via `wrangler secret put <NAME>`, not stored here):
 #   WEBSITE_URLS          - JSON array, e.g. [{"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}]
