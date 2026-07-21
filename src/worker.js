@@ -339,7 +339,11 @@ async function runDeepCheckForTarget(browser, env, target, allowedDomains) {
   });
 
   page.on('pageerror', (err) => {
-    result.pageErrors.push(String(err.message || err).slice(0, 300));
+    const message = String(err.message || err);
+    if (message.includes('Converting circular structure to JSON')) {
+      return;
+    }
+    result.pageErrors.push(message.slice(0, 300));
   });
 
   const start = Date.now();
