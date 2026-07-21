@@ -406,6 +406,19 @@ async function runDeepCheckForTarget(browser, env, target, allowedDomains) {
   return result;
 }
 
+function buildScreenshotUrl(env, key, baseUrl) {
+  if (!key) return null;
+  // Prefer the R2 bucket's own public URL (e.g. R2.dev subdomain or custom domain) so the
+  // Telegram alert links directly to the image instead of proxying through this Worker.
+  if (env.SCREENSHOTS_PUBLIC_URL) {
+    return `${env.SCREENSHOTS_PUBLIC_URL.replace(/\/$/, '')}/${encodeURIComponent(key)}`;
+  }
+  if (baseUrl) {
+    return `${baseUrl.replace(/\/$/, '')}/screenshot/${encodeURIComponent(key)}`;
+  }
+  return null;
+}
+
 async function runDeepTier(env, baseUrl) {
   const urls = parseUrls(env);
   const allowedDomains = parseAllowedDomains(env);
@@ -414,9 +427,7 @@ async function runDeepTier(env, baseUrl) {
   try {
     for (const target of urls) {
       const result = await runDeepCheckForTarget(browser, env, target, allowedDomains);
-      if (result.screenshotKey && baseUrl) {
-        result.screenshotUrl = `${baseUrl.replace(/\/$/, '')}/screenshot/${encodeURIComponent(result.screenshotKey)}`;
-      }
+      result.screenshotUrl = buildScreenshotUrl(env, result.screenshotKey, baseUrl);
       await writeLog(env, result);
 
       if (!result.ok) {

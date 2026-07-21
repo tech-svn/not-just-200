@@ -29,6 +29,12 @@ bucket_name = "not-just-200-screenshots"
 [vars]
 PUBLIC_BASE_URL = ""
 
+# Optional: the SCREENSHOTS R2 bucket's own public base URL (R2.dev subdomain or a custom
+# domain bound to the bucket), e.g. "https://pub-xxxxxxxx.r2.dev". When set, alerts link
+# directly to the image there instead of proxying through this Worker's /screenshot/<key>.
+# Takes priority over PUBLIC_BASE_URL for screenshot links.
+SCREENSHOTS_PUBLIC_URL = ""
+
 # Secrets (set via `wrangler secret put <NAME>`, not stored here):
 #   WEBSITE_URLS          - JSON array, e.g. [{"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}]
 #   ALLOWED_DOMAINS        - optional comma-separated domain whitelist
