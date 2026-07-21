@@ -287,10 +287,14 @@ async function runDeepCheckForTarget(browser, env, target, allowedDomains) {
   };
 
   const requests = [];
+  const ignoredStatusUrls = new Set();
 
   page.on('response', (response) => {
     const req = response.request();
     const urlStr = req.url();
+    if (IGNORED_STATUS_CODES.includes(response.status())) {
+      ignoredStatusUrls.add(urlStr);
+    }
     if (req.resourceType() === 'fetch') return;
     if (isAllowedDomain(urlStr, allowedDomains)) {
       requests.push({
@@ -322,6 +326,10 @@ async function runDeepCheckForTarget(browser, env, target, allowedDomains) {
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
+      const loc = msg.location();
+      if (loc?.url && ignoredStatusUrls.has(loc.url)) {
+        return;
+      }
       result.consoleErrors.push(msg.text().slice(0, 300));
     }
   });
