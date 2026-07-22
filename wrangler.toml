@@ -6,11 +6,12 @@ compatibility_flags = ["nodejs_compat"]
 # Remote headless browser (Browser Rendering) used by the hourly deep check.
 browser = { binding = "MYBROWSER" }
 
-# Two schedules dispatched inside the same scheduled() handler, keyed off event.cron:
+# Three schedules dispatched inside the same scheduled() handler, keyed off event.cron:
 #   */5 * * * *  -> fast static check (fetch + HTMLRewriter, no browser cost)
 #   0 * * * *    -> deep browser check (full Playwright render via Browser Rendering)
+#   55 23 * * *  -> daily Telegram summary of today's OK/failed counts (warns if none recorded)
 [triggers]
-crons = ["*/5 * * * *", "0 * * * *"]
+crons = ["*/5 * * * *", "0 * * * *", "55 23 * * *"]
 
 # Create with: wrangler kv namespace create MONITOR_LOGS
 # Then replace the id below with the id it prints.
@@ -36,8 +37,11 @@ PUBLIC_BASE_URL = ""
 SCREENSHOTS_PUBLIC_URL = "https://pub-70f8e9233b34475b9c97d42f0dea0070.r2.dev"
 
 # Secrets (set via `wrangler secret put <NAME>`, not stored here):
-#   WEBSITE_URLS          - JSON array, e.g. [{"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}]
-#   ALLOWED_DOMAINS        - optional comma-separated domain whitelist
+#   WEBSITE_URLS            - JSON array, e.g. [{"name":"Saramin","url":"https://saramin.vn","timeoutMs":30000}]
+#   ALLOWED_DOMAINS         - optional comma-separated domain whitelist
 #   TELEGRAM_BOT_TOKEN
 #   TELEGRAM_CHAT_ID
-#   MONITOR_TRIGGER_TOKEN  - required to call /run/static or /run/browser manually
+#   MONITOR_TRIGGER_TOKEN   - required to call /run/static, /run/browser, or /run/summary manually
+#   HEALTHCHECK_PING_URL_FAST - optional dead-man's-switch URL (e.g. healthchecks.io), pinged after
+#                               every fast-tier run; set its expected period to ~5 minutes
+#   HEALTHCHECK_PING_URL_DEEP - same, pinged after every deep-tier run; set its period to ~1 hour

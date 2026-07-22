@@ -1,15 +1,21 @@
 /**
  * Website Monitor - Cloudflare Worker
  *
- * Two schedules run out of the same scheduled() handler:
+ * Three schedules run out of the same scheduled() handler:
  *   - Fast tier  (every 5 minutes): fetch() + HTMLRewriter, checks main document status plus
  *     the page's core <script src> / <link rel="stylesheet"> tags. No Browser Rendering
  *     session, so it costs nothing beyond ordinary Worker subrequests.
  *   - Deep tier  (hourly, on the hour): full headless-browser render via Browser Rendering
  *     (@cloudflare/playwright), matching monitor.js's checkUrl() - JS execution, console
  *     errors, every sub-resource, real load timing, screenshot on failure.
+ *   - Daily summary (23:55 UTC): tallies today's OK/failed counts per tier from KV and sends
+ *     one Telegram digest. Warns explicitly if no checks were recorded at all that day.
  *
- * Manual testing: GET /run/static or /run/browser with ?token=<MONITOR_TRIGGER_TOKEN>.
+ * Since alerts only fire on failure, both tiers also ping an optional external dead-man's-switch
+ * URL (HEALTHCHECK_PING_URL_FAST / HEALTHCHECK_PING_URL_DEEP, e.g. from healthchecks.io) after
+ * each run so a silently-stopped cron gets caught even when nothing looks "wrong" locally.
+ *
+ * Manual testing: GET /run/static, /run/browser, or /run/summary with ?token=<MONITOR_TRIGGER_TOKEN>.
  * Screenshots captured by the deep tier are served back from GET /screenshot/<key>.
  */
 
@@ -20,6 +26,7 @@ const IGNORED_STATUS_CODES = [401, 403];
 const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions'];
 const FAST_CRON = '*/5 * * * *';
 const DEEP_CRON = '0 * * * *';
+const DAILY_CRON = '55 23 * * *';
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 WebsiteMonitorBot/1.0';
 
@@ -155,6 +162,74 @@ async function writeLog(env, result) {
   }
 }
 
+// ---------- Daily summary ----------
+
+async function updateDailySummary(env, result) {
+  if (!env.MONITOR_LOGS) return;
+  const date = result.startedAt.slice(0, 10);
+  const key = `summary:${date}`;
+  const keepDays = config.storage?.keepLogsForDays || 14;
+  try {
+    const summary = (await env.MONITOR_LOGS.get(key, { type: 'json' })) || {};
+    const stats = summary[result.mode] || { ok: 0, failed: 0, failedNames: [] };
+    if (result.ok) {
+      stats.ok++;
+    } else {
+      stats.failed++;
+      if (!stats.failedNames.includes(result.name)) stats.failedNames.push(result.name);
+    }
+    summary[result.mode] = stats;
+    await env.MONITOR_LOGS.put(key, JSON.stringify(summary), { expirationTtl: keepDays * 86400 });
+  } catch (err) {
+    console.error('[Summary] Failed to update daily summary:', err.message);
+  }
+}
+
+async function runDailySummary(env) {
+  if (!env.MONITOR_LOGS) {
+    console.warn('[Summary] MONITOR_LOGS not configured, skipping daily summary.');
+    return;
+  }
+  const date = new Date().toISOString().slice(0, 10);
+  const key = `summary:${date}`;
+  let summary = null;
+  try {
+    summary = await env.MONITOR_LOGS.get(key, { type: 'json' });
+  } catch (err) {
+    console.error('[Summary] Failed to read daily summary:', err.message);
+  }
+
+  if (!summary) {
+    await sendTelegram(
+      env,
+      `⚠️ <b>Daily summary ${date}</b>\nNo checks were recorded today. The cron may not be running — check the Worker's Triggers tab in the Cloudflare dashboard.`
+    );
+    return;
+  }
+
+  let msg = `📊 <b>Daily summary ${date}</b>\n`;
+  for (const [mode, stats] of Object.entries(summary)) {
+    const label = mode === 'browser' ? 'Deep (browser)' : 'Fast (static)';
+    msg += `${label}: ${stats.ok} OK, ${stats.failed} failed`;
+    if (stats.failed > 0 && stats.failedNames.length > 0) {
+      msg += ` (${stats.failedNames.join(', ')})`;
+    }
+    msg += '\n';
+  }
+  await sendTelegram(env, msg);
+}
+
+// ---------- Heartbeat (dead-man's-switch) ----------
+
+async function sendHeartbeat(url) {
+  if (!url) return;
+  try {
+    await fetch(url, { method: 'GET' });
+  } catch (err) {
+    console.warn('[Heartbeat] Ping failed:', err.message);
+  }
+}
+
 // ---------- Fast tier: fetch() + HTMLRewriter ----------
 
 async function extractCriticalResources(response, baseUrl) {
@@ -259,6 +334,7 @@ async function runFastTier(env) {
   for (const target of urls) {
     const result = await runStaticCheckForTarget(target, allowedDomains, maxResourcesPerUrl);
     await writeLog(env, result);
+    await updateDailySummary(env, result);
 
     if (!result.ok) {
       console.error(`[static] ${target.name}: ${result.errorMessage}`);
@@ -270,6 +346,8 @@ async function runFastTier(env) {
       }
     }
   }
+
+  await sendHeartbeat(env.HEALTHCHECK_PING_URL_FAST);
 }
 
 // ---------- Deep tier: @cloudflare/playwright (Browser Rendering) ----------
@@ -429,6 +507,7 @@ async function runDeepTier(env, baseUrl) {
       const result = await runDeepCheckForTarget(browser, env, target, allowedDomains);
       result.screenshotUrl = buildScreenshotUrl(env, result.screenshotKey, baseUrl);
       await writeLog(env, result);
+      await updateDailySummary(env, result);
 
       if (!result.ok) {
         console.error(`[browser] ${target.name}: ${result.errorMessage}`);
@@ -440,6 +519,8 @@ async function runDeepTier(env, baseUrl) {
         }
       }
     }
+
+    await sendHeartbeat(env.HEALTHCHECK_PING_URL_DEEP);
   } finally {
     await browser.close();
   }
@@ -453,6 +534,8 @@ export default {
       await runFastTier(env);
     } else if (event.cron === DEEP_CRON) {
       await runDeepTier(env, env.PUBLIC_BASE_URL);
+    } else if (event.cron === DAILY_CRON) {
+      await runDailySummary(env);
     } else {
       console.warn(`[scheduled] Unrecognized cron: ${event.cron}`);
     }
@@ -470,7 +553,7 @@ export default {
       });
     }
 
-    if (url.pathname === '/run/static' || url.pathname === '/run/browser') {
+    if (url.pathname === '/run/static' || url.pathname === '/run/browser' || url.pathname === '/run/summary') {
       const token = url.searchParams.get('token');
       if (!env.MONITOR_TRIGGER_TOKEN || token !== env.MONITOR_TRIGGER_TOKEN) {
         return new Response('Unauthorized', { status: 401 });
@@ -478,6 +561,10 @@ export default {
       if (url.pathname === '/run/static') {
         await runFastTier(env);
         return new Response('Static check completed. Check Telegram / KV logs for results.');
+      }
+      if (url.pathname === '/run/summary') {
+        await runDailySummary(env);
+        return new Response('Daily summary sent. Check Telegram for the digest.');
       }
       await runDeepTier(env, env.PUBLIC_BASE_URL || url.origin);
       return new Response('Browser check completed. Check Telegram / KV logs for results.');
