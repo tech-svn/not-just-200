@@ -1,8 +1,8 @@
 {
   "check": {
-    "waitUntil": "networkidle",
-    "networkIdleTimeoutMs": 30000,
-    "maxAllowedLoadTimeMs": 40000,
+    "waitUntil": "domcontentloaded",
+    "networkIdleTimeoutMs": 5000,
+    "maxAllowedLoadTimeMs": 15000,
     "ignoreStatusCodesForDomains": [],
     "screenshotOnError": true
   },
