@@ -16,7 +16,7 @@ Periodic website monitoring tool using **headless Chromium (Playwright)**. Unlik
 - ✅ Captures full-page screenshots on failure
 - ✅ Telegram alerts with detailed error reports
 - ✅ Domain whitelist filtering (check only specific domains)
-- ✅ Cloudflare Workers cron scheduling: fast static check every 5 min + deep browser check every hour
+- ✅ Cloudflare Workers cron scheduling: fast static check at :15/:30/:45 + deep browser check every hour
 - ✅ JSON Lines logging for historical analysis (local) / KV logging (Workers)
 
 ### Installation
@@ -119,10 +119,10 @@ Add (runs every 10 minutes):
 
 `src/worker.js` runs on Cloudflare Workers using two cron triggers defined in `wrangler.toml`:
 
-- **Fast tier** (`*/5 * * * *`): plain `fetch()` + the built-in `HTMLRewriter` — checks the main document's status code plus the page's core `<script src>` / `<link rel="stylesheet">` tags. No headless browser involved, so it costs nothing beyond ordinary Worker subrequests.
+- **Fast tier** (`15,30,45 * * * *`): plain `fetch()` + the built-in `HTMLRewriter` — checks the main document's status code plus the page's core `<script src>` / `<link rel="stylesheet">` tags. No headless browser involved, so it costs nothing beyond ordinary Worker subrequests.
 - **Deep tier** (`0 * * * *`): a full headless-browser render via [Browser Rendering](https://developers.cloudflare.com/browser-rendering/) using [`@cloudflare/playwright`](https://www.npmjs.com/package/@cloudflare/playwright) — same checks as `monitor.js`'s `checkUrl()` (JS execution, console errors, every sub-resource, real load timing, screenshot on failure).
 
-**Why two tiers:** Browser Rendering is billed by session time (the Free plan includes 10 browser-minutes/day). Running a full browser check every 5 minutes for every configured URL would blow that budget fast, especially on pages with 100+ requests. The fast tier gives near-real-time uptime signal for free; the hourly deep tier is the source of truth for full resource/JS coverage and stays comfortably inside the free budget (~5-6 browser-minutes/day for a couple of URLs).
+**Why two tiers:** Browser Rendering is billed by session time (the Free plan includes 10 browser-minutes/day). Running a full browser check every 15 minutes for every configured URL would blow that budget fast, especially on pages with 100+ requests. The fast tier gives near-real-time uptime signal for free; the hourly deep tier is the source of truth for full resource/JS coverage and stays comfortably inside the free budget (~5-6 browser-minutes/day for a couple of URLs).
 
 **Setup:**
 
@@ -218,7 +218,7 @@ Công cụ kiểm tra định kỳ website bằng **headless Chromium (Playwrigh
 - ✅ Chụp ảnh toàn trang khi lỗi
 - ✅ Cảnh báo Telegram với báo cáo chi tiết
 - ✅ Bộ lọc domain (chỉ kiểm tra các domain cụ thể)
-- ✅ Lập lịch bằng Cloudflare Workers: kiểm tra nhanh mỗi 5 phút + kiểm tra sâu bằng browser mỗi giờ
+- ✅ Lập lịch bằng Cloudflare Workers: kiểm tra nhanh lúc phút 15/30/45 + kiểm tra sâu bằng browser mỗi giờ
 - ✅ JSON Lines logging cho phân tích lịch sử (local) / KV logging (Workers)
 
 ### Cài Đặt
@@ -319,10 +319,10 @@ Thêm (chạy mỗi 10 phút):
 
 `src/worker.js` chạy trên Cloudflare Workers với hai cron trigger khai báo trong `wrangler.toml`:
 
-- **Tầng nhanh** (`*/5 * * * *`): dùng `fetch()` thuần + `HTMLRewriter` có sẵn — kiểm tra status code trang chính và các thẻ `<script src>` / `<link rel="stylesheet">` cốt lõi. Không dùng headless browser nên gần như miễn phí (chỉ tốn subrequest thông thường).
+- **Tầng nhanh** (`15,30,45 * * * *`): dùng `fetch()` thuần + `HTMLRewriter` có sẵn — kiểm tra status code trang chính và các thẻ `<script src>` / `<link rel="stylesheet">` cốt lõi. Không dùng headless browser nên gần như miễn phí (chỉ tốn subrequest thông thường).
 - **Tầng sâu** (`0 * * * *`): render đầy đủ bằng headless browser qua [Browser Rendering](https://developers.cloudflare.com/browser-rendering/) với [`@cloudflare/playwright`](https://www.npmjs.com/package/@cloudflare/playwright) — giống hệt `checkUrl()` trong `monitor.js` (chạy JS, bắt console error, kiểm tra mọi resource, đo thời gian load thật, chụp ảnh khi lỗi).
 
-**Vì sao chia 2 tầng:** Browser Rendering tính phí theo thời gian phiên (gói Free có 10 phút browser/ngày). Nếu chạy browser thật mỗi 5 phút cho mọi URL sẽ vượt ngân sách rất nhanh, nhất là với trang có 100+ request. Tầng nhanh cho tín hiệu uptime gần thời gian thực miễn phí; tầng sâu chạy mỗi giờ là nguồn kiểm tra đầy đủ resource/JS, vẫn nằm trong ngân sách free (~5-6 phút browser/ngày với vài URL).
+**Vì sao chia 2 tầng:** Browser Rendering tính phí theo thời gian phiên (gói Free có 10 phút browser/ngày). Nếu chạy browser thật mỗi 15 phút cho mọi URL sẽ vượt ngân sách rất nhanh, nhất là với trang có 100+ request. Tầng nhanh cho tín hiệu uptime gần thời gian thực miễn phí; tầng sâu chạy mỗi giờ là nguồn kiểm tra đầy đủ resource/JS, vẫn nằm trong ngân sách free (~5-6 phút browser/ngày với vài URL).
 
 **Thiết lập:**
 
@@ -391,7 +391,7 @@ Tracking của bên thứ ba (Google Analytics, DoubleClick, v.v.) sẽ bị t�
 
 ### Giới Hạn Của Tầng Nhanh
 
-Tầng static 5 phút chỉ thấy được những gì khai báo sẵn trong HTML thô (`<script src>`, `<link rel="stylesheet">`). Nó không thực thi JavaScript nên sẽ bỏ sót mọi thứ trang load động — API call do JS gọi, ảnh lazy-swap, uncaught exception, `console.error()`. Những lỗi này chỉ được tầng browser (chạy mỗi giờ) phát hiện, nghĩa là độ trễ phát hiện tối đa cho lỗi thuần JS có thể lên tới 1 giờ. Nếu điều này không chấp nhận được với một site cụ thể, cân nhắc chạy tầng sâu thường xuyên hơn (xem "Tinh chỉnh lịch chạy" ở trên) hoặc chuyển site đó sang chạy `monitor.js` trực tiếp qua cron local/VPS.
+Tầng static nhanh chỉ thấy được những gì khai báo sẵn trong HTML thô (`<script src>`, `<link rel="stylesheet">`). Nó không thực thi JavaScript nên sẽ bỏ sót mọi thứ trang load động — API call do JS gọi, ảnh lazy-swap, uncaught exception, `console.error()`. Những lỗi này chỉ được tầng browser (chạy mỗi giờ) phát hiện, nghĩa là độ trễ phát hiện tối đa cho lỗi thuần JS có thể lên tới 1 giờ. Nếu điều này không chấp nhận được với một site cụ thể, cân nhắc chạy tầng sâu thường xuyên hơn (xem "Tinh chỉnh lịch chạy" ở trên) hoặc chuyển site đó sang chạy `monitor.js` trực tiếp qua cron local/VPS.
 
 ### Mở Rộng Thêm
 

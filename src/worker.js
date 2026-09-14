@@ -2,7 +2,7 @@
  * Website Monitor - Cloudflare Worker
  *
  * Three schedules run out of the same scheduled() handler:
- *   - Fast tier  (every 5 minutes): fetch() + HTMLRewriter, checks main document status plus
+ *   - Fast tier  (at :15, :30 and :45): fetch() + HTMLRewriter, checks main document status plus
  *     the page's core <script src> / <link rel="stylesheet"> tags. No Browser Rendering
  *     session, so it costs nothing beyond ordinary Worker subrequests.
  *   - Deep tier  (hourly, on the hour): full headless-browser render via Browser Rendering
@@ -24,7 +24,7 @@ import config from '../config.json';
 
 const IGNORED_STATUS_CODES = [401, 403];
 const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions'];
-const FAST_CRON = '*/5 * * * *';
+const FAST_CRON = '15,30,45 * * * *';
 const DEEP_CRON = '0 * * * *';
 const DAILY_CRON = '55 23 * * *';
 const USER_AGENT =
