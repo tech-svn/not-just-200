@@ -22,7 +22,7 @@ const https = require('https');
 const IGNORED_STATUS_CODES = [401, 403];
 
 // Cac endpoint luon fail o headless browser (vd: can session dang nhap), bo qua khong tinh la loi
-const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions'];
+const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions', '/cdn-cgi/challenge-platform/'];
 
 // ---------- Parse allowed domains ----------
 function parseAllowedDomains() {

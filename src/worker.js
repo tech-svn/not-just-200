@@ -23,7 +23,7 @@ import { launch } from '@cloudflare/playwright';
 import config from '../config.json';
 
 const IGNORED_STATUS_CODES = [401, 403];
-const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions'];
+const IGNORED_URL_PATH_PREFIXES = ['/td/v2/users/me', '/td/v2/promotions', '/cdn-cgi/challenge-platform/'];
 const FAST_CRON = '15,30,45 * * * *';
 const DEEP_CRON = '0 * * * *';
 const DAILY_CRON = '55 23 * * *';
@@ -301,6 +301,7 @@ async function runStaticCheckForTarget(target, allowedDomains, maxResourcesPerUr
 
     const allResources = await extractCriticalResources(mainRes, mainRes.url);
     const filtered = allResources.filter((u) => {
+      if (isIgnoredRequestPath(u)) return false;
       const allowed = isAllowedDomain(u, allowedDomains);
       if (!allowed) result.filteredRequestsCount++;
       return allowed;
